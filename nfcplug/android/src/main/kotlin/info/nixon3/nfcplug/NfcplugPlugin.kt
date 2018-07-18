@@ -1,53 +1,54 @@
 package info.nixon3.nfcplug
 
+import android.app.Activity
+import android.app.Application
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.nfc.NfcAdapter
+import android.os.Bundle
+import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
-import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.PluginRegistry.Registrar
-import android.app.Activity
 import io.flutter.view.FlutterView
-import android.os.Bundle
-import android.app.Application
-import android.content.Intent
-import io.flutter.plugin.common.PluginRegistry
-import java.io.Console
 
 
-class NfcplugPlugin: MethodCallHandler, PluginRegistry.NewIntentListener {
-    override fun onNewIntent(intent: Intent?): Boolean {
-
-        if(intent!=null){
-            var message = ""
-            if(writeMode){
-                try{
-                    if(NFCUtil.createNFCMessage(msgToWrite,intent)){
-                        message="write Nfc done"
-                        channel!!.invokeMethod("wroteNfc",message)
-                        writeMode=false
-                    }
-                }
-                catch(e:Exception){
-                    message= e.message.toString()
-                }
-            }
-            else if(readMode)
-            {
-                var message = NFCUtil.retrieveNFCMessage(intent)
-                channel!!.invokeMethod("gotNfc",message)
-                readMode = false
-            }
-            return true
-        }
-        return false
-    }
+class NfcplugPlugin: MethodCallHandler {
 
 
-    private lateinit var mActivity: Activity
-    private lateinit var registrar: Registrar
-    private lateinit var view: FlutterView
-    private lateinit var channel: MethodChannel
+
+//        if(intent!=null){
+//            var message = ""
+//            if(writeMode){
+//                try{
+//                    if(NFCUtil.createNFCMessage(msgToWrite,intent)){
+//                        message="write Nfc done"
+//                        channel!!.invokeMethod("wroteNfc",message)
+//                        writeMode=false
+//                    }
+//                }
+//                catch(e:Exception){
+//                    message= e.message.toString()
+//                }
+//            }
+//            else if(readMode)
+//            {
+//                var message = NFCUtil.retrieveNFCMessage(intent)
+//                channel!!.invokeMethod("gotNfc",message)
+//                readMode = false
+//            }
+//            return true
+//        }
+//        return false
+
+
+    private var mActivity: Activity
+    private var registrar: Registrar
+    private var view: FlutterView
+    private var channel: MethodChannel
     private var nfcAdapter:NfcAdapter? =null
     private var readMode:Boolean =true
     private var writeMode:Boolean =false
@@ -58,6 +59,7 @@ class NfcplugPlugin: MethodCallHandler, PluginRegistry.NewIntentListener {
     this.registrar = registrar
     this.mActivity=activity
     this.view = view
+    this.channel=channel
     activity
             .application
             .registerActivityLifecycleCallbacks(
@@ -65,10 +67,9 @@ class NfcplugPlugin: MethodCallHandler, PluginRegistry.NewIntentListener {
                       override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle) {
 
                       }
-                        override fun onNewIntent(){}
 
                       override fun onActivityStarted(activity: Activity) {
-                          if(nfcAdapter==null) nfcAdapter = NfcAdapter.getDefaultAdapter(mActivity)
+                          if(nfcAdapter==null) nfcAdapter = NfcAdapter.getDefaultAdapter(activity)
 
                       }
 
@@ -76,7 +77,7 @@ class NfcplugPlugin: MethodCallHandler, PluginRegistry.NewIntentListener {
                           if (activity == mActivity) {
                               if (readMode || writeMode) {
                                   nfcAdapter?.let {
-                                      NFCUtil.enableNFCInForeground(it, mActivity, javaClass)
+                                      NFCUtil.enableNFCInForeground(it, activity, javaClass)
                                   }
                               }
                           }
@@ -84,7 +85,7 @@ class NfcplugPlugin: MethodCallHandler, PluginRegistry.NewIntentListener {
 
                       override fun onActivityPaused(activity: Activity) {
                                   nfcAdapter?.let {
-                                      NFCUtil.disableNFCInForeground(it, mActivity)
+                                      NFCUtil.disableNFCInForeground(it, activity)
                           }
                       }
 
@@ -101,10 +102,16 @@ class NfcplugPlugin: MethodCallHandler, PluginRegistry.NewIntentListener {
     fun registerWith(registrar: Registrar): Unit {
       val channel = MethodChannel(registrar.messenger(), "nfcplug")
        val instance =  NfcplugPlugin(registrar,registrar.view(),registrar.activity(),channel)
-      channel.setMethodCallHandler( instance)
-        registrar.addNewIntentListener(instance)
+        channel.setMethodCallHandler( instance)
+        var intentFilter:IntentFilter = IntentFilter()
+        intentFilter.addAction(NfcAdapter.ACTION_NDEF_DISCOVERED)
+        registrar.context().registerReceiver(createReceiver(),intentFilter)
+
     }
+
   }
+
+
 
   override fun onMethodCall(call: MethodCall, result: Result): Unit {
     when(call.method){
@@ -118,9 +125,23 @@ class NfcplugPlugin: MethodCallHandler, PluginRegistry.NewIntentListener {
             readMode = true
             result.success("Tap Card to read")
         }
-        "write"-> result.success("writing")
+        "write"-> result.success("not implemented")
         else -> result.notImplemented()
 
     }
   }
+}
+
+
+class createReceiver: BroadcastReceiver() {
+    override fun onReceive(context: Context?, intent: Intent?) {
+        handleIntent(intent)
+}
+
+    fun handleIntent(intent: Intent?) {
+        if (intent != null) {
+            var message = NFCUtil.retrieveNFCMessage(intent)
+            println(message)
+        }
+    }
 }
